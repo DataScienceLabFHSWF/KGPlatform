@@ -1,0 +1,226 @@
+version: "3.8"
+
+services:
+  # ============================================================
+  # APPLICATION SERVICES
+  # ============================================================
+
+  kgbuilder-api:
+    build:
+      context: .
+      dockerfile: services/kgbuilder_api/Dockerfile
+    container_name: kgbuilder-api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/data
+      - ./data/shared:/shared
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_URL=http://ollama-kgbuilder:11434
+      - NEO4J_URI=bolt://neo4j:7687
+      - QDRANT_URL=http://qdrant:6333
+      - FUSEKI_URL=http://fuseki:3030
+      - GRAPHQA_API_URL=http://graphqa-api:8002
+      - ONTOLOGY_API_URL=http://ontology-api:8003
+      - LOG_LEVEL=INFO
+    depends_on:
+      - neo4j
+      - qdrant
+      - fuseki
+      - ollama-kgbuilder
+    networks:
+      - kgplatform
+
+  graphqa-api:
+    build:
+      context: .
+      dockerfile: services/graphqa_api/Dockerfile
+    container_name: graphqa-api
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/data
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_URL=http://ollama-graphqa:11434
+      - NEO4J_URI=bolt://neo4j:7687
+      - QDRANT_URL=http://qdrant:6333
+      - FUSEKI_URL=http://fuseki:3030
+      - KGBUILDER_API_URL=http://kgbuilder-api:8001
+      - LOG_LEVEL=INFO
+      - KGRAG_CORS_ORIGINS=http://localhost:8501,http://localhost:3000,http://localhost:5173
+    depends_on:
+      - neo4j
+      - qdrant
+      - fuseki
+      - ollama-graphqa
+    networks:
+      - kgplatform
+
+  ontology-api:
+    build:
+      context: .
+      dockerfile: services/ontology_api/Dockerfile
+    container_name: ontology-api
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./data:/data
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_URL=http://ollama-ontology:11434
+      - FUSEKI_URL=http://fuseki:3030
+      - KGBUILDER_API_URL=http://kgbuilder-api:8001
+      - LOG_LEVEL=INFO
+    depends_on:
+      - fuseki
+      - ollama-ontology
+    networks:
+      - kgplatform
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kgplatform-frontend
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - KGBUILDER_API_URL=http://kgbuilder-api:8001
+      - GRAPHQA_API_URL=http://graphqa-api:8002
+      - ONTOLOGY_API_URL=http://ontology-api:8003
+    depends_on:
+      - kgbuilder-api
+      - graphqa-api
+      - ontology-api
+    networks:
+      - kgplatform
+
+  # ============================================================
+  # INFRASTRUCTURE — shared across all services
+  # ============================================================
+
+  neo4j:
+    image: neo4j:5.26.0
+    container_name: kgplatform-neo4j
+    restart: unless-stopped
+    environment:
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-changeme}
+      - NEO4J_PLUGINS=["apoc", "n10s"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*
+    volumes:
+      - ./data/neo4j:/data
+      - neo4j-plugins:/plugins
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    networks:
+      - kgplatform
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: kgplatform-qdrant
+    restart: unless-stopped
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    ports:
+      - "6333:6333"
+    networks:
+      - kgplatform
+
+  fuseki:
+    image: stain/jena-fuseki:latest
+    container_name: kgplatform-fuseki
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./data/fuseki:/fuseki
+    environment:
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-admin}
+    networks:
+      - kgplatform
+
+  # ============================================================
+  # OLLAMA — one instance per repo (different models / configs)
+  # ============================================================
+
+  ollama-kgbuilder:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-kgbuilder
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama-kgbuilder-data:/root/.ollama
+    environment:
+      - OLLAMA_ALLOW_DOWNLOADS=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - kgplatform
+
+  ollama-graphqa:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-graphqa
+    restart: unless-stopped
+    ports:
+      - "11436:11434"
+    volumes:
+      - ollama-graphqa-data:/root/.ollama
+    environment:
+      - OLLAMA_ALLOW_DOWNLOADS=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - kgplatform
+
+  ollama-ontology:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-ontology
+    restart: unless-stopped
+    ports:
+      - "11437:11434"
+    volumes:
+      - ollama-ontology-data:/root/.ollama
+    environment:
+      - OLLAMA_ALLOW_DOWNLOADS=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - kgplatform
+
+volumes:
+  neo4j-plugins:
+  ollama-kgbuilder-data:
+  ollama-graphqa-data:
+  ollama-ontology-data:
+
+networks:
+  kgplatform:
+    driver: bridge

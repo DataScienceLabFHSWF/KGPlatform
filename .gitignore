@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# KGPlatform — local environment & data volumes
+.env
+data/neo4j/*
+data/qdrant/*
+data/fuseki/*
+data/shared/change_requests/*
+!data/**/.gitkeep

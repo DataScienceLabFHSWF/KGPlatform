@@ -1,0 +1,11 @@
+[submodule "repos/KnowledgeGraphBuilder"]
+	path = repos/KnowledgeGraphBuilder
+	url = https://github.com/DataScienceLabFHSWF/KnowledgeGraphBuilder.git
+
+[submodule "repos/GraphQAAgent"]
+	path = repos/GraphQAAgent
+	url = https://github.com/DataScienceLabFHSWF/GraphQAAgent.git
+
+[submodule "repos/OntologyExtender"]
+	path = repos/OntologyExtender
+	url = https://github.com/DataScienceLabFHSWF/OntologyExtender.git
