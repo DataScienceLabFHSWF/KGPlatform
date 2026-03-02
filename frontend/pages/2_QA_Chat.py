@@ -2,10 +2,12 @@
 
 import json
 
+import os
+
 import streamlit as st
 import httpx
 
-GRAPHQA_API = "http://graphqa-api:8002"
+GRAPHQA_API = os.environ.get("GRAPHQA_API_URL", "http://graphqa-api:8002")
 
 st.set_page_config(page_title="QA Chat", page_icon="💬", layout="wide")
 st.title("💬 QA Chat")
@@ -21,7 +23,18 @@ if "chat_messages" not in st.session_state:
 # --- Sidebar settings ---
 with st.sidebar:
     st.subheader("Settings")
-    strategy = st.selectbox("Strategy", ["auto", "cypher", "vector", "hybrid"])
+    strategy = st.selectbox(
+        "Strategy",
+        ["hybrid_sota", "hybrid", "agentic", "cypher", "vector_only", "graph_only"],
+        format_func=lambda s: {
+            "hybrid_sota": "Hybrid SOTA (Ontology-Informed)",
+            "hybrid": "Hybrid Fusion (RRF)",
+            "agentic": "Agentic ReAct",
+            "cypher": "Cypher Query Generation",
+            "vector_only": "Vector Search",
+            "graph_only": "Graph Traversal",
+        }.get(s, s),
+    )
     language = st.selectbox("Language", ["de", "en"])
     streaming = st.checkbox("Streaming", value=True)
 
@@ -46,14 +59,24 @@ if prompt := st.chat_input("Ask a question about the knowledge graph..."):
     with st.chat_message("assistant"):
         try:
             if streaming:
-                # SSE streaming
+                # SSE streaming — API sends named events:
+                #   event: session       → {"session_id": "..."}
+                #   event: reasoning_step → {"step": N, "text": "..."}
+                #   event: token         → {"text": "..."}
+                #   event: evidence      → [...]
+                #   event: provenance    → [...]
+                #   event: subgraph      → {"nodes":[], "edges":[]}
+                #   event: done          → {"confidence": ..., "latency_ms": ...}
                 placeholder = st.empty()
                 full_response = ""
+                reasoning_steps = []
+                metadata = {}
+                current_event = None
 
-                with httpx.Client(timeout=60) as client:
+                with httpx.Client(timeout=httpx.Timeout(10, read=180)) as client:
                     with client.stream(
                         "POST",
-                        f"{GRAPHQA_API}/api/v1/chat",
+                        f"{GRAPHQA_API}/api/v1/chat/send",
                         json={
                             "session_id": st.session_state.chat_session_id,
                             "message": prompt,
@@ -63,22 +86,51 @@ if prompt := st.chat_input("Ask a question about the knowledge graph..."):
                         },
                     ) as response:
                         for line in response.iter_lines():
+                            line = line.strip()
+                            if not line:
+                                current_event = None
+                                continue
+                            if line.startswith("event: "):
+                                current_event = line[7:]
+                                continue
                             if line.startswith("data: "):
-                                data = json.loads(line[6:])
-                                if data.get("done"):
-                                    break
-                                full_response += data.get("token", "")
-                                placeholder.markdown(full_response + "▌")
+                                payload = line[6:]
+                                try:
+                                    data = json.loads(payload)
+                                except json.JSONDecodeError:
+                                    continue
+
+                                if current_event == "session":
+                                    st.session_state.chat_session_id = data.get("session_id")
+                                elif current_event == "token":
+                                    full_response += data.get("text", "")
+                                    placeholder.markdown(full_response + "▌")
+                                elif current_event == "reasoning_step":
+                                    reasoning_steps.append(data.get("text", ""))
+                                elif current_event == "done":
+                                    metadata = data
+                                # evidence/provenance/subgraph captured in metadata
 
                 placeholder.markdown(full_response)
                 st.session_state.chat_messages.append({
                     "role": "assistant",
                     "content": full_response,
                 })
+
+                # Show metadata
+                with st.expander("Details"):
+                    if metadata.get("confidence") is not None:
+                        st.metric("Confidence", f"{metadata['confidence']:.2f}")
+                    if metadata.get("latency_ms"):
+                        st.caption(f"Latency: {metadata['latency_ms']:.0f} ms · Strategy: {metadata.get('strategy', strategy)}")
+                    if reasoning_steps:
+                        st.write("**Reasoning Chain:**")
+                        for step in reasoning_steps:
+                            st.write(f"- {step}")
             else:
                 # Non-streaming
                 resp = httpx.post(
-                    f"{GRAPHQA_API}/api/v1/chat",
+                    f"{GRAPHQA_API}/api/v1/chat/send",
                     json={
                         "session_id": st.session_state.chat_session_id,
                         "message": prompt,
@@ -86,13 +138,13 @@ if prompt := st.chat_input("Ask a question about the knowledge graph..."):
                         "language": language,
                         "stream": False,
                     },
-                    timeout=60,
+                    timeout=120,
                 )
                 resp.raise_for_status()
                 data = resp.json()
 
                 st.session_state.chat_session_id = data.get("session_id")
-                answer = data.get("answer", "")
+                answer = data.get("message", {}).get("content", "")
                 st.markdown(answer)
                 st.session_state.chat_messages.append({
                     "role": "assistant",
@@ -102,6 +154,8 @@ if prompt := st.chat_input("Ask a question about the knowledge graph..."):
                 # Show metadata
                 with st.expander("Details"):
                     st.metric("Confidence", f"{data.get('confidence', 0):.2f}")
+                    if data.get("latency_ms"):
+                        st.caption(f"Latency: {data['latency_ms']:.0f} ms · Strategy: {data.get('strategy_used', strategy)}")
                     if data.get("reasoning_chain"):
                         st.write("**Reasoning Chain:**")
                         for step in data["reasoning_chain"]:

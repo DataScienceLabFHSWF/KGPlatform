@@ -1,10 +1,12 @@
 """Review — HITL expert review workflow."""
 
+import os
+
 import streamlit as st
 import httpx
 
-KGBUILDER_API = "http://kgbuilder-api:8001"
-GRAPHQA_API = "http://graphqa-api:8002"
+KGBUILDER_API = os.environ.get("KGBUILDER_API_URL", "http://kgbuilder-api:8001")
+GRAPHQA_API = os.environ.get("GRAPHQA_API_URL", "http://graphqa-api:8002")
 
 st.set_page_config(page_title="Review", page_icon="📋", layout="wide")
 st.title("📋 HITL Review Workflow")

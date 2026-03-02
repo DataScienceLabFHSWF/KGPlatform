@@ -18,12 +18,17 @@ Unified interface for the Knowledge Graph research ecosystem:
 """)
 
 # Health check all services
+import os
 import httpx
 
+KGBUILDER_API = os.environ.get("KGBUILDER_API_URL", "http://kgbuilder-api:8001")
+GRAPHQA_API = os.environ.get("GRAPHQA_API_URL", "http://graphqa-api:8002")
+ONTOLOGY_API = os.environ.get("ONTOLOGY_API_URL", "http://ontology-api:8010")
+
 services = {
-    "KGBuilder": "http://kgbuilder-api:8001/api/v1/health",
-    "GraphQA": "http://graphqa-api:8002/api/v1/health",
-    "Ontology": "http://ontology-api:8003/api/v1/health",
+    "KGBuilder": f"{KGBUILDER_API}/api/v1/health",
+    "GraphQA": f"{GRAPHQA_API}/api/v1/health",
+    "Ontology": f"{ONTOLOGY_API}/api/v1/health",
 }
 
 cols = st.columns(len(services))

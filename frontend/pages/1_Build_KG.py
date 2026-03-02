@@ -1,10 +1,12 @@
 """Build KG — Trigger and monitor KG construction pipeline."""
 
+import os
+
 import streamlit as st
 import httpx
 import time
 
-KGBUILDER_API = "http://kgbuilder-api:8001"
+KGBUILDER_API = os.environ.get("KGBUILDER_API_URL", "http://kgbuilder-api:8001")
 
 st.set_page_config(page_title="Build KG", page_icon="🏗️", layout="wide")
 st.title("🏗️ Build Knowledge Graph")

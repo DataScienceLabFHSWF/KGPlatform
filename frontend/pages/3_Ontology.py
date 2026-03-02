@@ -1,9 +1,11 @@
 """Ontology — Browse and extend the ontology."""
 
+import os
+
 import streamlit as st
 import httpx
 
-ONTOLOGY_API = "http://ontology-api:8003"
+ONTOLOGY_API = os.environ.get("ONTOLOGY_API_URL", "http://ontology-api:8010")
 
 st.set_page_config(page_title="Ontology", page_icon="🧬", layout="wide")
 st.title("🧬 Ontology Browser")

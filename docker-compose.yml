@@ -1,14 +1,115 @@
-version: "3.8"
-
 services:
   # ============================================================
-  # FRONTEND ONLY
+  # API SERVICES — built from submodule repos
   # ============================================================
-  # The FastAPI services (kgbuilder-api, graphqa-api, ontology-api)
-  # are expected to be running separately (either standalone repo containers
-  # or in their own deployments). The frontend references them via environment
-  # variables and http://service-name:port within the same network.
-  
+
+  kgbuilder-api:
+    build:
+      context: ./repos/KnowledgeGraphBuilder
+      dockerfile: docker/Dockerfile.api
+    container_name: kgbuilder-api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-kgbuilder}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-changeme}
+      - FUSEKI_URL=http://fuseki:3030
+      - FUSEKI_DATASET=${FUSEKI_DATASET:-kgbuilder}
+      - OLLAMA_URL=http://ollama-kgbuilder:11434
+      - OLLAMA_MODEL=${KGBUILDER_MODEL:-qwen3:8b}
+      - GRAPHQA_API_URL=http://graphqa-api:8002
+      - ONTOLOGY_API_URL=http://ontology-api:8010
+    depends_on:
+      ollama-kgbuilder-init:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      fuseki:
+        condition: service_started
+    networks:
+      - kgplatform
+
+  graphqa-api:
+    build:
+      context: ./repos/GraphQAAgent
+      dockerfile: Dockerfile
+    container_name: graphqa-api
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - KGRAG_NEO4J__URI=bolt://neo4j:7687
+      - KGRAG_NEO4J__USER=${NEO4J_USER:-neo4j}
+      - KGRAG_NEO4J__PASSWORD=${NEO4J_PASSWORD:-changeme}
+      - KGRAG_NEO4J__DATABASE=neo4j
+      - KGRAG_QDRANT__URL=http://qdrant:6333
+      - KGRAG_QDRANT__COLLECTION_NAME=${QDRANT_COLLECTION:-kgbuilder}
+      - KGRAG_FUSEKI__URL=http://fuseki:3030
+      - KGRAG_FUSEKI__DATASET=${FUSEKI_DATASET:-kgbuilder}
+      - KGRAG_OLLAMA__BASE_URL=http://ollama-graphqa:11434
+      - KGRAG_OLLAMA__GENERATION_MODEL=${GRAPHQA_MODEL:-qwen3:8b}
+      - KGRAG_OLLAMA__EMBEDDING_MODEL=${EMBED_MODEL:-qwen3-embedding:latest}
+      - KGRAG_OLLAMA__TEMPERATURE=0.3
+      - KGRAG_OLLAMA__MAX_TOKENS=4096
+      - KGRAG_API_PORT=8002
+      - KGRAG_CORS_ORIGINS=http://localhost:8501,http://kgplatform-frontend:8501
+      - KGRAG_LOG_LEVEL=INFO
+    command: uvicorn kgrag.api.server:app --host 0.0.0.0 --port 8002
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    depends_on:
+      ollama-graphqa-init:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      fuseki:
+        condition: service_started
+    networks:
+      - kgplatform
+
+  ontology-api:
+    build:
+      context: ./repos/OntologyExtender
+      dockerfile: docker/Dockerfile.api
+    container_name: ontology-api
+    restart: unless-stopped
+    command: ["uvicorn", "ontology_hitl.api.server:app", "--host", "0.0.0.0", "--port", "8010"]
+    ports:
+      - "8010:8010"
+    environment:
+      - SERVICE_NAME=ontology
+      - UVICORN_PORT=8010
+      - HITL_FUSEKI_URL=http://fuseki:3030
+      - HITL_FUSEKI_DATASET=${FUSEKI_DATASET:-kgbuilder}
+      - HITL_FUSEKI_STAGING_DATASET=kgbuilder-staging
+      - HITL_OLLAMA_URL=http://ollama-ontology:11434
+      - HITL_OLLAMA_MODEL=${ONTOLOGY_MODEL:-qwen3:8b}
+      - KGBUILDER_API_URL=http://kgbuilder-api:8001
+    depends_on:
+      ollama-ontology-init:
+        condition: service_completed_successfully
+      fuseki:
+        condition: service_started
+    networks:
+      - kgplatform
+
+  # ============================================================
+  # FRONTEND
+  # ============================================================
+
   frontend:
     build:
       context: ./frontend
@@ -20,11 +121,11 @@ services:
     environment:
       - KGBUILDER_API_URL=http://kgbuilder-api:8001
       - GRAPHQA_API_URL=http://graphqa-api:8002
-      - ONTOLOGY_API_URL=http://ontology-api:8003
+      - ONTOLOGY_API_URL=http://ontology-api:8010
     depends_on:
-      - neo4j
-      - qdrant
-      - fuseki
+      - kgbuilder-api
+      - graphqa-api
+      - ontology-api
     networks:
       - kgplatform
 
@@ -43,7 +144,7 @@ services:
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*
       - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*
     volumes:
-      - ./data/neo4j:/data
+      - /home/fneubuerger/KnowledgeGraphBuilder/data/neo4j:/data
       - neo4j-plugins:/plugins
     ports:
       - "7474:7474"
@@ -56,7 +157,7 @@ services:
     container_name: kgplatform-qdrant
     restart: unless-stopped
     volumes:
-      - ./data/qdrant:/qdrant/storage
+      - /home/fneubuerger/KnowledgeGraphBuilder/data/qdrant:/qdrant/storage
     ports:
       - "6333:6333"
     networks:
@@ -69,9 +170,12 @@ services:
     ports:
       - "3030:3030"
     volumes:
-      - ./data/fuseki:/fuseki
+      - /home/fneubuerger/KnowledgeGraphBuilder/data/fuseki:/fuseki
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-admin}
+      - FUSEKI_DATASET_1=kgbuilder
+      - FUSEKI_DATASET_2=kgbuilder-staging
+      - FUSEKI_DATASET_3=lawgraph
     networks:
       - kgplatform
 
@@ -96,6 +200,12 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - kgplatform
 
@@ -116,6 +226,12 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - kgplatform
 
@@ -136,6 +252,74 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - kgplatform
+
+  # ============================================================
+  # OLLAMA MODEL INIT — pull required models on first run
+  # These run once, pull models if missing, then exit.
+  # API services wait for these to complete before starting.
+  # ============================================================
+
+  ollama-kgbuilder-init:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-kgbuilder-init
+    depends_on:
+      ollama-kgbuilder:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama-kgbuilder:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models for kgbuilder..."
+        ollama pull ${KGBUILDER_MODEL:-qwen3:8b}
+        ollama pull ${EMBED_MODEL:-qwen3-embedding}
+        echo "kgbuilder models ready."
+    restart: "no"
+    networks:
+      - kgplatform
+
+  ollama-graphqa-init:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-graphqa-init
+    depends_on:
+      ollama-graphqa:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama-graphqa:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models for graphqa..."
+        ollama pull ${GRAPHQA_MODEL:-qwen3:8b}
+        ollama pull ${EMBED_MODEL:-qwen3-embedding}
+        echo "graphqa models ready."
+    restart: "no"
+    networks:
+      - kgplatform
+
+  ollama-ontology-init:
+    image: ollama/ollama:0.14.3
+    container_name: ollama-ontology-init
+    depends_on:
+      ollama-ontology:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama-ontology:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models for ontology..."
+        ollama pull ${ONTOLOGY_MODEL:-qwen3:8b}
+        echo "ontology models ready."
+    restart: "no"
     networks:
       - kgplatform
 
