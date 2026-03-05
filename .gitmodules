@@ -1,11 +1,14 @@
 [submodule "repos/KnowledgeGraphBuilder"]
 	path = repos/KnowledgeGraphBuilder
-        url = git@github.com:DataScienceLabFHSWF/KnowledgeGraphBuilder.git
+	url = git@github.com:DataScienceLabFHSWF/KnowledgeGraphBuilder.git
+	branch = fast-api
 
 [submodule "repos/GraphQAAgent"]
-        path = repos/GraphQAAgent
-        url = git@github.com:DataScienceLabFHSWF/GraphQAAgent.git
+	path = repos/GraphQAAgent
+	url = git@github.com:DataScienceLabFHSWF/GraphQAAgent.git
+	branch = dev/fast-api-backend
 
 [submodule "repos/OntologyExtender"]
-        path = repos/OntologyExtender
-        url = git@github.com:DataScienceLabFHSWF/OntologyExtender.git
+	path = repos/OntologyExtender
+	url = git@github.com:DataScienceLabFHSWF/OntologyExtender.git
+	branch = fast-api
