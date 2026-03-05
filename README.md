@@ -162,6 +162,23 @@ docker compose up -d --build
 
 # Chat via API
 curl -X POST http://localhost:8002/api/v1/chat/send \
+
+## Testing the platform services
+
+You can exercise the REST APIs exposed by the three FastAPI containers from
+within the top‑level Python virtual environment.  After activating ``.venv``
+and ensuring the Docker composition is up, run:
+
+```bash
+pip install -r requirements.txt   # populates virtualenv with client libs
+pytest tests/test_api_endpoints.py
+```
+
+The tests make simple health and docs checks against ports 8001 (KGBuilder),
+8002 (GraphQA) and 8003 (Ontology).  Feel free to extend them with additional
+calls as the API surface grows.
+
+curl -X POST http://localhost:8002/api/v1/chat/send \
     -H "Content-Type: application/json" \
     -d '{"message": "What is nuclear decommissioning?", "strategy": "hybrid_sota"}'
 ```
