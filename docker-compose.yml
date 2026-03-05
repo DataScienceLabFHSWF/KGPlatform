@@ -24,6 +24,11 @@ services:
       - OLLAMA_MODEL=${KGBUILDER_MODEL:-qwen3:8b}
       - GRAPHQA_API_URL=http://graphqa-api:8002
       - ONTOLOGY_API_URL=http://ontology-api:8010
+      # LangSmith tracing (populated from root .env)
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT_KGBUILDER}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
     depends_on:
       ollama-kgbuilder-init:
         condition: service_completed_successfully
@@ -61,6 +66,11 @@ services:
       - KGRAG_API_PORT=8002
       - KGRAG_CORS_ORIGINS=http://localhost:8501,http://kgplatform-frontend:8501
       - KGRAG_LOG_LEVEL=INFO
+      # LangSmith tracing (populated from root .env)
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT_GRAPHQA}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
     command: uvicorn kgrag.api.server:app --host 0.0.0.0 --port 8002
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/api/v1/health"]
@@ -98,6 +108,11 @@ services:
       - HITL_OLLAMA_URL=http://ollama-ontology:11434
       - HITL_OLLAMA_MODEL=${ONTOLOGY_MODEL:-qwen3:8b}
       - KGBUILDER_API_URL=http://kgbuilder-api:8001
+      # LangSmith tracing (populated from root .env)
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT_ONTOLOGY}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
     depends_on:
       ollama-ontology-init:
         condition: service_completed_successfully
