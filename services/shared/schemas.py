@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field
 class QAQuestion(BaseModel):
     id: str
     question: str
+    cq_type: str = Field(
+        default="VCQ",
+        description="Competency question type (SCQ, VCQ, FCQ, RCQ, MpCQ)",
+    )
     expected_answers: list[str] = Field(default_factory=list)
     query_type: str = "entity"
     difficulty: int = Field(default=3, ge=1, le=5)
