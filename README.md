@@ -66,7 +66,7 @@ One command brings up all infrastructure, pulls Ollama models, and starts three 
 
 1. Docker builds three API images from the submodule Dockerfiles
 2. Infrastructure containers start (Neo4j, Qdrant, Fuseki, 3× Ollama)
-3. Three **init containers** pull the configured models (`qwen3:8b` + `qwen3-embedding`) into each Ollama instance — this takes 5–10 min on first run, is a no-op if models already exist
+3. Three **init containers** pull the configured models (`gemma4:e2b` / `gemma4:e4b` / `gemma4:31b` + `qwen3-embedding`) into each Ollama instance — this takes 5–10 min on first run, is a no-op if models already exist
 4. API services start once their init container exits successfully
 5. Frontend starts once all APIs are up
 
@@ -88,9 +88,9 @@ Each API service gets its own Ollama. Models are pulled automatically on first `
 
 | Instance | Host Port | Models | Used By |
 |----------|-----------|--------|---------|
-| ollama-kgbuilder | 18134 | qwen3:8b, qwen3-embedding | KGBuilder API |
-| ollama-graphqa | 18136 | qwen3:8b, qwen3-embedding | GraphQA API |
-| ollama-ontology | 18135 | qwen3:8b | Ontology API |
+| ollama-kgbuilder | 18134 | gemma4:e2b, qwen3-embedding | KGBuilder API |
+| ollama-graphqa | 18136 | gemma4:e4b, qwen3-embedding | GraphQA API |
+| ollama-ontology | 18135 | gemma4:31b | Ontology API |
 
 ## Standalone vs Platform
 
@@ -189,13 +189,13 @@ curl -X POST http://localhost:8002/api/v1/chat/send \
 
 | Model | Params | Role | Used In |
 |-------|--------|------|---------|
-| `qwen3:8b` | 8B | Default production model (reasoning) | All three APIs |
+| `gemma4:e2b` | 2B | Default KGBuilder model | KGBuilder API |
+| `gemma4:e4b` | 4B | Default GraphQA model | GraphQA API |
+| `gemma4:31b` | 31B | Default OntologyExtender model | Ontology API |
 | `qwen3-embedding` | — | Embedding / semantic similarity | KGB, GraphQA, Ontology (fallback) |
-| `llama3.2:3b` | 3.2B | Small non-reasoning baseline | OntologyExtender benchmarks |
-| `nemotron-3-nano` | ~8B | Medium model experiments | OntologyExtender benchmarks |
-| `qwen3-next` | 79.7B | Large reasoning model | OntologyExtender benchmarks |
+| `qwen3-next` | 79.7B | Large reasoning benchmark model | OntologyExtender benchmarks |
 
-The platform's `docker-compose.yml` pulls only `qwen3:8b` and `qwen3-embedding` automatically. Additional benchmark models must be pulled manually into the relevant Ollama instance (see benchmarking examples above).
+The platform's `docker-compose.yml` pulls the configured Gemma4 defaults plus `qwen3-embedding` automatically. Additional benchmark models must still be pulled manually into the relevant Ollama instance (see benchmarking examples above).
 
 ## HITL Feedback Loop
 
@@ -269,9 +269,9 @@ cp .env.example .env
 | `FUSEKI_ADMIN_PASSWORD` | `admin` | Fuseki admin password |
 | `FUSEKI_DATASET` | `kgbuilder` | Default Fuseki dataset |
 | `QDRANT_COLLECTION` | `kgbuilder` | Qdrant collection name |
-| `KGBUILDER_MODEL` | `qwen3:8b` | LLM for KGBuilder |
-| `GRAPHQA_MODEL` | `qwen3:8b` | LLM for GraphQA |
-| `ONTOLOGY_MODEL` | `qwen3:8b` | LLM for OntologyExtender |
+| `KGBUILDER_MODEL` | `gemma4:e2b` | LLM for KGBuilder |
+| `GRAPHQA_MODEL` | `gemma4:e4b` | LLM for GraphQA |
+| `ONTOLOGY_MODEL` | `gemma4:31b` | LLM for OntologyExtender |
 | `EMBED_MODEL` | `qwen3-embedding` | Embedding model |
 | `LOG_LEVEL` | `INFO` | Logging level |
 

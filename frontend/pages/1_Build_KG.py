@@ -25,7 +25,7 @@ with st.form("build_config"):
             "Document Directory",
             value="data/documents",
         )
-        model = st.text_input("LLM Model", value="qwen3:8b")
+        model = st.text_input("LLM Model", value="gemma4:e2b")
     with col2:
         max_iterations = st.slider("Max Iterations", 1, 50, 5)
         questions_per_class = st.slider("Questions per Class", 1, 20, 3)

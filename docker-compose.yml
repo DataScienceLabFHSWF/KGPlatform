@@ -21,7 +21,7 @@ services:
       - FUSEKI_URL=http://fuseki:3030
       - FUSEKI_DATASET=${FUSEKI_DATASET:-kgbuilder}
       - OLLAMA_URL=http://ollama-kgbuilder:11434
-      - OLLAMA_MODEL=${KGBUILDER_MODEL:-qwen3:8b}
+      - OLLAMA_MODEL=${KGBUILDER_MODEL:-gemma4:e2b}
       - GRAPHQA_API_URL=http://graphqa-api:8002
       - ONTOLOGY_API_URL=http://ontology-api:8010
       # LangSmith tracing (populated from root .env)
@@ -59,7 +59,7 @@ services:
       - KGRAG_FUSEKI__URL=http://fuseki:3030
       - KGRAG_FUSEKI__DATASET=${FUSEKI_DATASET:-kgbuilder}
       - KGRAG_OLLAMA__BASE_URL=http://ollama-graphqa:11434
-      - KGRAG_OLLAMA__GENERATION_MODEL=${GRAPHQA_MODEL:-qwen3:8b}
+      - KGRAG_OLLAMA__GENERATION_MODEL=${GRAPHQA_MODEL:-gemma4:e4b}
       - KGRAG_OLLAMA__EMBEDDING_MODEL=${EMBED_MODEL:-qwen3-embedding:latest}
       - KGRAG_OLLAMA__TEMPERATURE=0.3
       - KGRAG_OLLAMA__MAX_TOKENS=4096
@@ -106,7 +106,7 @@ services:
       - HITL_FUSEKI_DATASET=${FUSEKI_DATASET:-kgbuilder}
       - HITL_FUSEKI_STAGING_DATASET=kgbuilder-staging
       - HITL_OLLAMA_URL=http://ollama-ontology:11434
-      - HITL_OLLAMA_MODEL=${ONTOLOGY_MODEL:-qwen3:8b}
+      - HITL_OLLAMA_MODEL=${ONTOLOGY_MODEL:-gemma4:31b}
       - KGBUILDER_API_URL=http://kgbuilder-api:8001
       # LangSmith tracing (populated from root .env)
       - LANGSMITH_TRACING=${LANGSMITH_TRACING}
@@ -225,7 +225,7 @@ services:
       - kgplatform
 
   ollama-graphqa:
-    image: ollama/ollama:0.14.3
+    image: ollama/ollama:latest
     container_name: ollama-graphqa
     restart: unless-stopped
     ports:
@@ -251,7 +251,7 @@ services:
       - kgplatform
 
   ollama-ontology:
-    image: ollama/ollama:0.14.3
+    image: ollama/ollama:latest
     container_name: ollama-ontology
     restart: unless-stopped
     ports:
@@ -283,7 +283,7 @@ services:
   # ============================================================
 
   ollama-kgbuilder-init:
-    image: ollama/ollama:0.14.3
+    image: ollama/ollama:latest
     container_name: ollama-kgbuilder-init
     depends_on:
       ollama-kgbuilder:
@@ -294,7 +294,7 @@ services:
     command:
       - |
         echo "Pulling models for kgbuilder..."
-        ollama pull ${KGBUILDER_MODEL:-qwen3:8b}
+        ollama pull ${KGBUILDER_MODEL:-gemma4:e2b}
         ollama pull ${EMBED_MODEL:-qwen3-embedding}
         echo "kgbuilder models ready."
     restart: "no"
@@ -302,7 +302,7 @@ services:
       - kgplatform
 
   ollama-graphqa-init:
-    image: ollama/ollama:0.14.3
+    image: ollama/ollama:latest
     container_name: ollama-graphqa-init
     depends_on:
       ollama-graphqa:
@@ -313,7 +313,7 @@ services:
     command:
       - |
         echo "Pulling models for graphqa..."
-        ollama pull ${GRAPHQA_MODEL:-qwen3:8b}
+        ollama pull ${GRAPHQA_MODEL:-gemma4:e4b}
         ollama pull ${EMBED_MODEL:-qwen3-embedding}
         echo "graphqa models ready."
     restart: "no"
@@ -321,7 +321,7 @@ services:
       - kgplatform
 
   ollama-ontology-init:
-    image: ollama/ollama:0.14.3
+    image: ollama/ollama:latest
     container_name: ollama-ontology-init
     depends_on:
       ollama-ontology:
@@ -332,7 +332,7 @@ services:
     command:
       - |
         echo "Pulling models for ontology..."
-        ollama pull ${ONTOLOGY_MODEL:-qwen3:8b}
+        ollama pull ${ONTOLOGY_MODEL:-gemma4:31b}
         echo "ontology models ready."
     restart: "no"
     networks:

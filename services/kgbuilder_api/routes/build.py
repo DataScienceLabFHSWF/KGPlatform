@@ -35,7 +35,7 @@ class BuildRequest(BaseModel):
     max_iterations: int = Field(default=5, ge=1, le=50)
     questions_per_class: int = Field(default=3, ge=1, le=20)
     confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    model: str = Field(default="qwen3:8b")
+    model: str = Field(default="gemma4:e2b")
 
 
 class BuildResponse(BaseModel):
