@@ -1,0 +1,19 @@
+{
+  "_note": "EXAMPLE ONLY to show the format. Replace it with the real ontology when the domain experts finish it. Copy to schema.json and edit.",
+  "version": "example-0",
+  "nodes": [
+    "Requirement",
+    "Regulation",
+    "Facility",
+    "System",
+    "Measure"
+  ],
+  "relationships": [
+    ["Requirement", "DEFINED_IN", "Regulation"],
+    ["Requirement", "APPLIES_TO", "System"],
+    ["System", "LOCATED_IN", "Facility"],
+    ["Measure", "CHANGES", "System"],
+    ["Measure", "FULFILLS", "Requirement"]
+  ],
+  "additional_instructions": "The text is German. Keep entity names in German as written in the text. Merge spelling variants of the same thing into one name."
+}

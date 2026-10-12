@@ -1,0 +1,93 @@
+# Knowledge graph builder (Neo4j LLM Graph Builder), Ollama only.
+# Works with `podman-compose` (shared server) and `docker compose` (laptop).
+# Run `sh setup.sh` once first, then fill in `.env`.
+#
+# This stack has its OWN Neo4j. It does not touch the main application Neo4j,
+# because both use the label `Chunk` and would mix search results.
+
+name: ${KG_STACK_NAME:-kgb}
+
+services:
+  neo4j:
+    image: docker.io/library/neo4j:5.26-community
+    container_name: ${KG_STACK_NAME:-kgb}-n4j
+    environment:
+      NEO4J_AUTH: neo4j/${KG_NEO4J_PASSWORD:?set KG_NEO4J_PASSWORD in .env}
+      # The builder needs APOC. Neo4j downloads it on first start.
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+    ports:
+      - "${KG_NEO4J_HTTP_PORT:-7474}:7474"
+      - "${KG_NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - kg-n4j-data:/data
+      - kg-n4j-plugins:/plugins
+
+  backend:
+    build:
+      context: ./upstream/backend
+    image: localhost/kgb-backend:${KG_UPSTREAM_TAG:-v0.8.7}
+    container_name: ${KG_STACK_NAME:-kgb}-backend
+    depends_on:
+      - neo4j
+    # Upstream starts 8 workers. Each one loads its own models, so we use fewer.
+    command: >
+      gunicorn score:app
+      --workers ${KG_BACKEND_WORKERS:-2}
+      --threads 8
+      --worker-class uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8000
+      --timeout ${KG_BACKEND_TIMEOUT:-1800}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${KG_NEO4J_PASSWORD}
+      NEO4J_DATABASE: neo4j
+      # One fixed model name, "ollama_kg". The real Ollama model and server come from .env.
+      # The backend turns "ollama_kg" into this variable name and reads "<model>,<url>".
+      LLM_MODEL_CONFIG_OLLAMA_KG: "${KG_OLLAMA_MODEL:?set KG_OLLAMA_MODEL in .env},${KG_OLLAMA_URL:?set KG_OLLAMA_URL in .env}"
+      # These default to OpenAI upstream. Point them at Ollama so no API key is ever needed.
+      GRAPH_CLEANUP_MODEL: ollama_kg
+      DEFAULT_DIFFBOT_CHAT_MODEL: ollama_kg
+      # Local embedding model, built into the image. No API key.
+      EMBEDDING_PROVIDER: sentence-transformer
+      EMBEDDING_MODEL: all-MiniLM-L6-v2
+      IS_EMBEDDING: "true"
+      ENTITY_EMBEDDING: "true"
+      KNN_MIN_SCORE: "0.94"
+      DUPLICATE_SCORE_VALUE: "0.97"
+      DUPLICATE_TEXT_DISTANCE: "3"
+      UPDATE_GRAPH_CHUNKS_PROCESSED: "20"
+      GCS_FILE_CACHE: "False"
+      GCP_LOG_METRICS_ENABLED: "False"
+      AUTHENTICATION_REQUIRED: "False"
+      ALLOWED_FRONTEND_ORIGINS: "*"
+    ports:
+      - "${KG_BACKEND_PORT:-8000}:8000"
+
+  frontend:
+    build:
+      context: ./upstream/frontend
+      # The browser calls the backend directly, so this URL is baked in at build time.
+      # Rebuild the frontend after you change KG_BACKEND_PUBLIC_URL.
+      args:
+        VITE_BACKEND_API_URL: ${KG_BACKEND_PUBLIC_URL:-http://localhost:8000}
+        VITE_REACT_APP_SOURCES: local
+        VITE_LLM_MODELS: ollama_kg
+        VITE_LLM_MODELS_PROD: ollama_kg
+        VITE_ENV: DEV
+        VITE_SKIP_AUTH: "true"
+        DEPLOYMENT_ENV: local
+    image: localhost/kgb-frontend:${KG_UPSTREAM_TAG:-v0.8.7}
+    container_name: ${KG_STACK_NAME:-kgb}-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${KG_FRONTEND_PORT:-8080}:8080"
+
+volumes:
+  kg-n4j-data:
+  kg-n4j-plugins:
